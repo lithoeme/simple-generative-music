@@ -8,11 +8,36 @@
 </head>
 <body>
   <h1>Generative Music Program</h1>
+  
+  <!-- Starting Note Selection -->
+  <label for="noteSelector">Choose a starting note: </label>
+  <select id="noteSelector">
+    <option value="C">C</option>
+    <option value="D">D</option>
+    <option value="E">E</option>
+    <option value="F">F</option>
+    <option value="G">G</option>
+    <option value="A">A</option>
+    <option value="B">B</option>
+  </select>
+  
+  <!-- Starting Octave Selection -->
+  <label for="octaveSelector">Choose a starting octave: </label>
+  <select id="octaveSelector">
+    <option value="3">3</option>
+    <option value="4">4</option>
+    <option value="5">5</option>
+  </select>
+  
+  <br><br>
+
   <button onclick="startMusic()">Start Music</button>
   <button onclick="stopMusic()">Stop Music</button>
 
   <script>
-    let sequence;  // We will use Tone.Sequence instead of Tone.Part for better sync
+    let sequence;
+    let baseNote = "C";  // Default base note
+    let baseOctave = 4;  // Default base octave
 
     // Function to start Tone.js after user interaction
     async function startAudioContext() {
@@ -27,28 +52,55 @@
       }
     }
 
+    // Update base note and octave based on user selections
+    function updateBaseNoteAndOctave() {
+      const noteSelector = document.getElementById('noteSelector');
+      const octaveSelector = document.getElementById('octaveSelector');
+      baseNote = noteSelector.value;
+      baseOctave = parseInt(octaveSelector.value, 10);
+    }
+
     // Start the music with a simple sequence
     async function startMusic() {
+      updateBaseNoteAndOctave();  // Update base note and octave based on the selection
       await startAudioContext();  // Ensure AudioContext is resumed
 
       const synth = new Tone.Synth().toDestination();
       synth.volume.value = -10;  // Set a reasonable volume
 
-      // Play a single note to test if sound works
-      synth.triggerAttackRelease("C4", "8n");
-      console.log("Single note played!");
+      // Function to generate a random note from a list of notes based on the base note and octave
+      function getRandomNote() {
+        const notes = ["C", "D", "E", "F", "G", "A", "B"];
+        const randomNote = notes[Math.floor(Math.random() * notes.length)];
+        return randomNote + baseOctave;  // Combine base note with selected octave
+      }
 
-      // Create a sequence of notes and their timing using Tone.Sequence
-      sequence = new Tone.Sequence((time, note) => {
-        synth.triggerAttackRelease(note, "8n", time);
-      }, ["C4", "E4", "G4", "B4"], "4n");  // The notes will play every quarter note (4n)
+      // Function to generate a sequence of random notes
+      function generateRandomSequence(length = 8) {
+        const randomSequence = [];
+        for (let i = 0; i < length; i++) {
+          randomSequence.push(getRandomNote());
+        }
+        return randomSequence;
+      }
 
-      // Start the transport to control timing
-      Tone.Transport.start();
-      
-      // Start the sequence
-      sequence.start(0);  // Start immediately at time 0
-      console.log("Music started!");
+      // Function to play the generated sequence using Tone.js
+      function playRandomSequence() {
+        const randomSequence = generateRandomSequence();
+
+        // Create a Tone.Sequence to play the random sequence of notes
+        sequence = new Tone.Sequence((time, note) => {
+          console.log(`Playing note: ${note}`);  // Log the note being played
+          synth.triggerAttackRelease(note, "8n", time);  // Play each note at the given time
+        }, randomSequence, "4n");  // Play notes every quarter note
+
+        // Start the sequence
+        Tone.Transport.start();
+        sequence.start();
+        console.log("Music started!");
+      }
+
+      playRandomSequence();
     }
 
     // Stop the music

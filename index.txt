@@ -1,175 +1,64 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generative Music with Tone.js</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.27/Tone.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generative Music with Tone.js</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.27/Tone.min.js"></script>
 </head>
 <body>
-    <h1>Generative Music Program</h1>
-    <button onclick="startMusic()">Start Music</button>
-    <button onclick="stopMusic()">Stop Music</button>
-    <script>
+  <h1>Generative Music Program</h1>
+  <button onclick="startMusic()">Start Music</button>
+  <button onclick="stopMusic()">Stop Music</button>
 
-        Tone.start().then(() => {
-        console.log("Tone.js is ready!");
-        }).catch(error => {
-        console.error("Error starting Tone.js:", error);
-        });
-
-        class MusicElementFactory {
-            static createElement(type, options) {
-            switch (type) {
-                case 'synth':
-                return new Tone.Synth(options).toDestination();
-                case 'drum':
-                return new Tone.MembraneSynth(options).toDestination();
-                case 'effect':
-                return new Tone.Effect(options);
-                default:
-                throw new Error('Unknown element type');
-            }
-            }
+  <script>
+    let sequence;  // We will use Tone.Sequence instead of Tone.Part for better sync   }
+    
+    // Function to start Tone.js after user interaction
+    async function startAudioContext() {
+      try {
+        if (Tone.context.state === 'suspended') {
+          await Tone.start();
+          console.log("AudioContext is resumed!");
         }
+        console.log("AudioContext state:", Tone.context.state); // Log the current state
+      } catch (error) {
+        console.error("Error starting AudioContext:", error);
+      }
+    }
 
-        class MusicContext {
-            constructor() {
-            if (!MusicContext.instance) {
-                this.transport = Tone.Transport;
-                MusicContext.instance = this;
-            }
-            return MusicContext.instance;
-            }
-        }
-        const musicContext = new MusicContext();
-        Object.freeze(musicContext);
+    // Start the music with a simple sequence
+    async function startMusic() {
+      await startAudioContext();  // Ensure AudioContext is resumed
 
-        class MusicComposition {
-            constructor() {
-            this.tracks = [];
-            }
-        
-            addTrack(track) {
-            this.tracks.push(track);
-            }
-        
-            start() {
-            this.tracks.forEach(track => track.start());
-            }
-        
-            stop() {
-            this.tracks.forEach(track => track.stop());
-            }
-        }
+      const synth = new Tone.Synth().toDestination();
+      synth.volume.value = -10;  // Set a reasonable volume
 
-        class EffectDecorator {
-            constructor(track, effect) {
-            this.track = track;
-            this.effect = effect;
-            this.track.connect(this.effect);
-            this.effect.toDestination();
-            }
-        
-            start() {
-            this.track.start();
-            }
-        
-            stop() {
-            this.track.stop();
-            }
-        }
+      // Play a single note to test if sound works
+      synth.triggerAttackRelease("C4", "8n");
+      console.log("Single note played!");
 
-        class MusicPlayerFacade {
-            constructor() {
-            this.composition = new MusicComposition();
-            }
-        
-            addTrack(track) {
-            this.composition.addTrack(track);
-            }
-        
-            start() {
-            Tone.Transport.start();
-            this.composition.start();
-            }
-        
-            stop() {
-            Tone.Transport.stop();
-            this.composition.stop();
-            }
-        }
+      // Create a sequence of notes and their timing using Tone.Sequence
+      sequence = new Tone.Sequence((time, note) => {
+        synth.triggerAttackRelease(note, "8n", time);
+      }, ["C4", "E4", "G4", "B4"], "4n");  // The notes will play every quarter note (4n)
 
-        class EventManager {
-            constructor() {
-            this.listeners = [];
-            }
-        
-            subscribe(listener) {
-            this.listeners.push(listener);
-            }
-        
-            notify(event) {
-            this.listeners.forEach(listener => listener.update(event));
-            }
-        }
+      // Start the transport to control timing
+      Tone.Transport.start();
+      
+      // Start the sequence
+      sequence.start(0);  // Start immediately at time 0
+      console.log("Music started!");
+    }
 
-        class UserActionCommand {
-            constructor(action, target) {
-            this.action = action;
-            this.target = target;
-            }
-        
-            execute() {
-            this.target[this.action]();
-            }
-        }
-
-        class PatternStrategy {
-            constructor(strategy) {
-            this.strategy = strategy;
-            }
-        
-            generatePattern() {
-            return this.strategy.generate();
-            }
-        }
-        
-        class RandomPattern {
-            generate() {
-            return Math.random() * 100; // Simple example
-            }
-        }
-        
-        class AlgorithmicPattern {
-            generate() {
-            return Math.sin(Tone.now()); // Another simple example
-            }
-        }
-        
-        let musicPlayer;
-
-        function startMusic() {
-        musicPlayer = new MusicPlayerFacade();
-
-        const synth = MusicElementFactory.createElement('synth');
-        const drum = MusicElementFactory.createElement('drum');
-
-        const synthTrack = new EffectDecorator(synth, new Tone.Reverb());
-        const drumTrack = new EffectDecorator(drum, new Tone.Delay());
-
-        musicPlayer.addTrack(synthTrack);
-        musicPlayer.addTrack(drumTrack);
-
-        musicPlayer.start();
-        }
-
-        function stopMusic() {
-        if (musicPlayer) {
-            musicPlayer.stop();
-        }
-        }
+    // Stop the music
+    function stopMusic() {
+      if (sequence) {
+        sequence.stop();  // Stop the sequence
+        Tone.Transport.stop();  // Stop the transport
+        console.log("Music stopped!");
+      }
+    }
   </script>
 </body>
 </html>
