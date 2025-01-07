@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generative Music with Tone.js</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.27/Tone.min.js"></script>
+</head>
+<body>
+  <h1>Generative Music Program</h1>
+  <button onclick="startMusic()">Start Music</button>
+  <button onclick="stopMusic()">Stop Music</button>
+
+  <script>
+    let sequence;  // We will use Tone.Sequence instead of Tone.Part for better sync
+
+    // Function to start Tone.js after user interaction
+    async function startAudioContext() {
+      try {
+        if (Tone.context.state === 'suspended') {
+          await Tone.start();
+          console.log("AudioContext is resumed!");
+        }
+        console.log("AudioContext state:", Tone.context.state); // Log the current state
+      } catch (error) {
+        console.error("Error starting AudioContext:", error);
+      }
+    }
+
+    // Start the music with a simple sequence
+    async function startMusic() {
+      await startAudioContext();  // Ensure AudioContext is resumed
+
+      const synth = new Tone.Synth().toDestination();
+      synth.volume.value = -10;  // Set a reasonable volume
+
+      // Play a single note to test if sound works
+      synth.triggerAttackRelease("C4", "8n");
+      console.log("Single note played!");
+
+      // Create a sequence of notes and their timing using Tone.Sequence
+      sequence = new Tone.Sequence((time, note) => {
+        synth.triggerAttackRelease(note, "8n", time);
+      }, ["C4", "E4", "G4", "B4"], "4n");  // The notes will play every quarter note (4n)
+
+      // Start the transport to control timing
+      Tone.Transport.start();
+      
+      // Start the sequence
+      sequence.start(0);  // Start immediately at time 0
+      console.log("Music started!");
+    }
+
+    // Stop the music
+    function stopMusic() {
+      if (sequence) {
+        sequence.stop();  // Stop the sequence
+        Tone.Transport.stop();  // Stop the transport
+        console.log("Music stopped!");
+      }
+    }
+  </script>
+</body>
+</html>

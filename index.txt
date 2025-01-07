@@ -1,0 +1,175 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generative Music with Tone.js</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.27/Tone.min.js"></script>
+</head>
+<body>
+    <h1>Generative Music Program</h1>
+    <button onclick="startMusic()">Start Music</button>
+    <button onclick="stopMusic()">Stop Music</button>
+    <script>
+
+        Tone.start().then(() => {
+        console.log("Tone.js is ready!");
+        }).catch(error => {
+        console.error("Error starting Tone.js:", error);
+        });
+
+        class MusicElementFactory {
+            static createElement(type, options) {
+            switch (type) {
+                case 'synth':
+                return new Tone.Synth(options).toDestination();
+                case 'drum':
+                return new Tone.MembraneSynth(options).toDestination();
+                case 'effect':
+                return new Tone.Effect(options);
+                default:
+                throw new Error('Unknown element type');
+            }
+            }
+        }
+
+        class MusicContext {
+            constructor() {
+            if (!MusicContext.instance) {
+                this.transport = Tone.Transport;
+                MusicContext.instance = this;
+            }
+            return MusicContext.instance;
+            }
+        }
+        const musicContext = new MusicContext();
+        Object.freeze(musicContext);
+
+        class MusicComposition {
+            constructor() {
+            this.tracks = [];
+            }
+        
+            addTrack(track) {
+            this.tracks.push(track);
+            }
+        
+            start() {
+            this.tracks.forEach(track => track.start());
+            }
+        
+            stop() {
+            this.tracks.forEach(track => track.stop());
+            }
+        }
+
+        class EffectDecorator {
+            constructor(track, effect) {
+            this.track = track;
+            this.effect = effect;
+            this.track.connect(this.effect);
+            this.effect.toDestination();
+            }
+        
+            start() {
+            this.track.start();
+            }
+        
+            stop() {
+            this.track.stop();
+            }
+        }
+
+        class MusicPlayerFacade {
+            constructor() {
+            this.composition = new MusicComposition();
+            }
+        
+            addTrack(track) {
+            this.composition.addTrack(track);
+            }
+        
+            start() {
+            Tone.Transport.start();
+            this.composition.start();
+            }
+        
+            stop() {
+            Tone.Transport.stop();
+            this.composition.stop();
+            }
+        }
+
+        class EventManager {
+            constructor() {
+            this.listeners = [];
+            }
+        
+            subscribe(listener) {
+            this.listeners.push(listener);
+            }
+        
+            notify(event) {
+            this.listeners.forEach(listener => listener.update(event));
+            }
+        }
+
+        class UserActionCommand {
+            constructor(action, target) {
+            this.action = action;
+            this.target = target;
+            }
+        
+            execute() {
+            this.target[this.action]();
+            }
+        }
+
+        class PatternStrategy {
+            constructor(strategy) {
+            this.strategy = strategy;
+            }
+        
+            generatePattern() {
+            return this.strategy.generate();
+            }
+        }
+        
+        class RandomPattern {
+            generate() {
+            return Math.random() * 100; // Simple example
+            }
+        }
+        
+        class AlgorithmicPattern {
+            generate() {
+            return Math.sin(Tone.now()); // Another simple example
+            }
+        }
+        
+        let musicPlayer;
+
+        function startMusic() {
+        musicPlayer = new MusicPlayerFacade();
+
+        const synth = MusicElementFactory.createElement('synth');
+        const drum = MusicElementFactory.createElement('drum');
+
+        const synthTrack = new EffectDecorator(synth, new Tone.Reverb());
+        const drumTrack = new EffectDecorator(drum, new Tone.Delay());
+
+        musicPlayer.addTrack(synthTrack);
+        musicPlayer.addTrack(drumTrack);
+
+        musicPlayer.start();
+        }
+
+        function stopMusic() {
+        if (musicPlayer) {
+            musicPlayer.stop();
+        }
+        }
+  </script>
+</body>
+</html>
