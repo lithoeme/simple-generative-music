@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Generative Music with Tone.js</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.27/Tone.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
 </head>
 <body>
   <h1>Generative Music Program</h1>
@@ -28,16 +29,31 @@
     <option value="4">4</option>
     <option value="5">5</option>
   </select>
-  
+
+  <!-- Note Duration Selection -->
+  <label for="durationSelector">Choose a note duration: </label>
+  <select id="durationSelector">
+    <option value="8n">Eighth Note</option>
+    <option value="4n">Quarter Note</option>
+    <option value="2n">Half Note</option>
+    <option value="1n">Whole Note</option>
+  </select>
+
   <br><br>
 
   <button onclick="startMusic()">Start Music</button>
   <button onclick="stopMusic()">Stop Music</button>
 
+  <h2>Generated Songs</h2>
+  <ul id="songList"></ul>
+
   <script>
     let sequence;
     let baseNote = "C";  // Default base note
     let baseOctave = 4;  // Default base octave
+    let noteDuration = "4n";  // Default note duration (quarter note)
+    let recorder = new Tone.Recorder();
+    let songCount = 0;
 
     // Function to start Tone.js after user interaction
     async function startAudioContext() {
@@ -46,34 +62,55 @@
           await Tone.start();
           console.log("AudioContext is resumed!");
         }
-        console.log("AudioContext state:", Tone.context.state); // Log the current state
       } catch (error) {
         console.error("Error starting AudioContext:", error);
       }
     }
 
-    // Update base note and octave based on user selections
-    function updateBaseNoteAndOctave() {
+    // Update base note, octave, and note duration based on user selections
+    function updateBaseSettings() {
       const noteSelector = document.getElementById('noteSelector');
       const octaveSelector = document.getElementById('octaveSelector');
+      const durationSelector = document.getElementById('durationSelector');
+
       baseNote = noteSelector.value;
       baseOctave = parseInt(octaveSelector.value, 10);
+      noteDuration = durationSelector.value;
+    }
+
+    // Function to generate a random note based on the base note and octave
+    function getRandomNote() {
+      const notes = ["C", "D", "E", "F", "G", "A", "B"];
+      const randomNote = notes[Math.floor(Math.random() * notes.length)];
+      return randomNote + baseOctave;  // Combine base note with selected octave
     }
 
     // Start the music with a simple sequence
     async function startMusic() {
-      updateBaseNoteAndOctave();  // Update base note and octave based on the selection
+      updateBaseSettings();  // Update settings based on user selections
       await startAudioContext();  // Ensure AudioContext is resumed
+
+      // Stop and dispose of any existing sequence to avoid overlapping
+      if (sequence) {
+        sequence.stop();
+        sequence.dispose();
+      }
+
+      // Stop Tone.js Transport and reset the state
+      Tone.Transport.stop();
+      Tone.Transport.cancel();
+
+      // Reset the Tone.js context to avoid residual state issues
+      Tone.context.currentTime = 0;
 
       const synth = new Tone.Synth().toDestination();
       synth.volume.value = -10;  // Set a reasonable volume
 
-      // Function to generate a random note from a list of notes based on the base note and octave
-      function getRandomNote() {
-        const notes = ["C", "D", "E", "F", "G", "A", "B"];
-        const randomNote = notes[Math.floor(Math.random() * notes.length)];
-        return randomNote + baseOctave;  // Combine base note with selected octave
-      }
+      // Connect synth to recorder
+      synth.connect(recorder);
+
+      // Start recording
+      recorder.start();
 
       // Function to generate a sequence of random notes
       function generateRandomSequence(length = 8) {
@@ -84,32 +121,80 @@
         return randomSequence;
       }
 
-      // Function to play the generated sequence using Tone.js
-      function playRandomSequence() {
-        const randomSequence = generateRandomSequence();
+      // Generate a sequence of random notes
+      const randomSequence = generateRandomSequence();
 
-        // Create a Tone.Sequence to play the random sequence of notes
-        sequence = new Tone.Sequence((time, note) => {
-          console.log(`Playing note: ${note}`);  // Log the note being played
-          synth.triggerAttackRelease(note, "8n", time);  // Play each note at the given time
-        }, randomSequence, "4n");  // Play notes every quarter note
+      // Create a Tone.Sequence to play the random sequence of notes
+      sequence = new Tone.Sequence((time, note) => {
+        console.log(`Playing note: ${note}`);
+        synth.triggerAttackRelease(note, noteDuration, time);  // Play each note at the given time
+      }, randomSequence, "4n");  // Default timing (quarter note for each)
 
-        // Start the sequence
-        Tone.Transport.start();
-        sequence.start();
-        console.log("Music started!");
-      }
-
-      playRandomSequence();
+      // Start the transport and sequence
+      Tone.Transport.start();
+      sequence.start();
+      console.log("Music started!");
     }
 
-    // Stop the music
-    function stopMusic() {
+    // Stop the music and add the song to the list
+    async function stopMusic() {
       if (sequence) {
         sequence.stop();  // Stop the sequence
+        sequence.dispose();  // Dispose of the sequence to free resources
         Tone.Transport.stop();  // Stop the transport
+        Tone.Transport.cancel();  // Cancel any pending events
         console.log("Music stopped!");
+
+        const recording = await recorder.stop();  // Stop recording and get the audio buffer
+        convertToMp3(recording);  // Convert the recording to MP3 and add to the list
       }
+    }
+
+    // Convert WAV to MP3 using Lame.js and add the song to the list
+    function convertToMp3(recording) {
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const wav = new Uint8Array(event.target.result);
+        const mp3Encoder = new lamejs.Mp3Encoder(1, 44100, 128);  // 1 channel, 44.1kHz, 128kbps
+        const mp3Data = [];
+        const samples = new Int16Array(wav.buffer);
+        let remaining = samples.length;
+        let samplesPerFrame = 1152;
+        for (let i = 0; remaining >= samplesPerFrame; i += samplesPerFrame) {
+          const left = samples.subarray(i, i + samplesPerFrame);
+          const mp3buf = mp3Encoder.encodeBuffer(left);
+          if (mp3buf.length > 0) {
+            mp3Data.push(new Uint8Array(mp3buf));
+          }
+          remaining -= samplesPerFrame;
+        }
+        const mp3buf = mp3Encoder.flush();
+        if (mp3buf.length > 0) {
+          mp3Data.push(new Uint8Array(mp3buf));
+        }
+        const mp3Blob = new Blob(mp3Data, { type: 'audio/mp3' });
+        addSongToList(mp3Blob);
+      };
+      reader.readAsArrayBuffer(recording);
+    }
+
+    // Add the recorded song to the list with a download button
+    function addSongToList(blob) {
+      songCount++;
+      const url = URL.createObjectURL(blob);
+      const songList = document.getElementById('songList');
+      
+      const listItem = document.createElement('li');
+      listItem.textContent = `Song ${songCount}`;
+
+      const downloadButton = document.createElement('a');
+      downloadButton.href = url;
+      downloadButton.download = `generated_song_${songCount}.mp3`;
+      downloadButton.textContent = 'Download';
+      downloadButton.style.marginLeft = '10px';
+      
+      listItem.appendChild(downloadButton);
+      songList.appendChild(listItem);
     }
   </script>
 </body>
